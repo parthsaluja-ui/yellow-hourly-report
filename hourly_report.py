@@ -102,7 +102,9 @@ def generate_report(df, merged_df):
 
     # 1. Snapshot — count unique sessions (chats), not tickets
     total_last_hour = last_hour_df["SESSION_ID"].nunique()
-    total_today     = len(merged_today_df)
+    # Cumulative = total rows from latest CSV for today
+    latest_today_df = df[df["TICKET_CREATION_TIME"] >= today_start]
+    total_today     = len(latest_today_df)
 
     # Unassigned = ALL queued tickets from merged CSV (more complete)
     unassigned = merged_df[
@@ -137,7 +139,7 @@ def send_slack_report(report):
 
 *1️⃣ Last Hour Snapshot*
 • Chats (last 1hr): *{report['total_last_hour']}*
-• Total chats today (cumulative): *{report['total_today']}*
+• Total chats today (New + Reopen): *{report['total_today']}*
 • In queue / unassigned: *{report['unassigned']}*
 • Avg wait time: *{report['avg_wait']}*
 
