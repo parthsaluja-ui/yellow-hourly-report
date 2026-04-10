@@ -46,37 +46,42 @@ def get_latest_csv(service):
     results = service.users().messages().list(
         userId="me",
         q=f'subject:"{EMAIL_SUBJECT}"',
-        maxResults=1
+        maxResults=2
     ).execute()
 
     messages = results.get("messages", [])
     if not messages:
         raise Exception(f"No emails found with subject: {EMAIL_SUBJECT}")
 
-    msg = service.users().messages().get(
-        userId="me", id=messages[0]["id"], format="full"
-    ).execute()
-
-    body = base64.urlsafe_b64decode(msg["payload"]["body"]["data"]).decode("utf-8", errors="ignore")
-
-    # Extract CSV download URL from email body
     import re, html
-    match = re.search(r"href='(https://app\.yellow\.ai/minio/exports/[^']+)'", body)
-    if not match:
-        match = re.search(r'href="(https://app\.yellow\.ai/minio/exports/[^"]+)"', body)
-    if not match:
-        raise Exception("No CSV download link found in email body")
+    dfs = []
+    for msg_meta in messages:
+        msg = service.users().messages().get(
+            userId="me", id=msg_meta["id"], format="full"
+        ).execute()
+        body = base64.urlsafe_b64decode(msg["payload"]["body"]["data"]).decode("utf-8", errors="ignore")
+        match = re.search(r"href='(https://app\.yellow\.ai/minio/exports/[^']+)'", body)
+        if not match:
+            match = re.search(r'href="(https://app\.yellow\.ai/minio/exports/[^"]+)"', body)
+        if not match:
+            continue
+        csv_url = html.unescape(match.group(1))
+        print(f"Downloading CSV from: {csv_url[:80]}...")
+        resp = requests.get(csv_url)
+        resp.raise_for_status()
+        dfs.append(pd.read_csv(io.StringIO(resp.text)))
 
-    csv_url = html.unescape(match.group(1))
-    print(f"Downloading CSV from: {csv_url[:80]}...")
+    if not dfs:
+        raise Exception("No CSV download link found in emails")
 
-    resp = requests.get(csv_url)
-    resp.raise_for_status()
-    return pd.read_csv(io.StringIO(resp.text))
+    # Return latest CSV + merged (for queue count)
+    latest_df = dfs[0]
+    merged_df = pd.concat(dfs).drop_duplicates(subset="SESSION_ID", keep="first")  # keep newest
+    return latest_df, merged_df
 
 
 # ── Generate report data ─────────────────────────────────────────────────────
-def generate_report(df):
+def generate_report(df, merged_df):
     IST = timezone(timedelta(hours=5, minutes=30))
     now_ist       = datetime.now(IST)
     # Filter for 2 hours ago → 1 hour ago (complete hour with full data in CSV)
@@ -91,12 +96,17 @@ def generate_report(df):
     last_hour_df = df[(df["TICKET_CREATION_TIME"] >= one_hour_ago) & (df["TICKET_CREATION_TIME"] < hour_end)]
     today_df     = df[df["TICKET_CREATION_TIME"] >= today_start]
 
+    # Cumulative uses merged CSV for more complete count
+    merged_df["TICKET_CREATION_TIME"] = pd.to_datetime(merged_df["TICKET_CREATION_TIME"], errors="coerce")
+    merged_today_df = merged_df[merged_df["TICKET_CREATION_TIME"] >= today_start]
+
     # 1. Snapshot — count unique sessions (chats), not tickets
     total_last_hour = last_hour_df["SESSION_ID"].nunique()
-    total_today     = today_df["SESSION_ID"].nunique()
+    total_today     = len(merged_today_df)
 
-    unassigned = last_hour_df[
-        last_hour_df["AGENT_NAME"].isna() | (last_hour_df["AGENT_NAME"].astype(str).str.strip() == "")
+    # Unassigned = ALL queued tickets from merged CSV (more complete)
+    unassigned = merged_df[
+        merged_df["TICKET_STATUS"].astype(str).str.upper() == "QUEUED"
     ]["SESSION_ID"].nunique()
 
     avg_wait_secs = last_hour_df["QUEUE_WAIT_DURATION_IN_SECONDS"].mean()
@@ -148,8 +158,8 @@ def send_slack_report(report):
 # ── Main ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print(f"[{datetime.now()}] Running Yellow hourly report...")
-    service = get_gmail_service()
-    df      = get_latest_csv(service)
-    report  = generate_report(df)
+    service            = get_gmail_service()
+    df, merged_df      = get_latest_csv(service)
+    report             = generate_report(df, merged_df)
     send_slack_report(report)
     print("Done!")
