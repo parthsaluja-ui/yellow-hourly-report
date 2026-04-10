@@ -105,16 +105,12 @@ def generate_report(df):
     # 2. Source breakdown
     source_breakdown = last_hour_df.drop_duplicates("SESSION_ID")["SOURCE_CHANNEL"].value_counts().to_dict()
 
-    # 4. Top issues
-    top_issues = last_hour_df["ISSUE"].value_counts().head(5).to_dict()
-
     return {
         "total_last_hour": total_last_hour,
         "total_today":     total_today,
         "unassigned":      unassigned,
         "avg_wait":        avg_wait_str,
         "source_breakdown": source_breakdown,
-        "top_issues":      top_issues,
         "timestamp":       now_ist.strftime("%d %b %Y, %I:%M %p IST"),
     }
 
@@ -133,10 +129,7 @@ def send_slack_report(report):
 • Avg wait time: *{report['avg_wait']}*
 
 *2️⃣ Source Breakdown*
-{fmt(report['source_breakdown'])}
-
-*3️⃣ Top Issues*
-{fmt(report['top_issues'])}"""
+{fmt(report['source_breakdown'])}"""
 
     resp = requests.post(
         "https://slack.com/api/chat.postMessage",
