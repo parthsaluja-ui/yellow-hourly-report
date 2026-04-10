@@ -130,7 +130,7 @@ def generate_report(df, merged_df):
         "unassigned":      unassigned,
         "avg_wait":        avg_wait_str,
         "source_breakdown": source_breakdown,
-        "timestamp":       one_hour_ago.strftime('%-I %p, %d %b %Y'),
+        "timestamp":       one_hour_ago.strftime('%d %b %Y'),
     }
 
 
