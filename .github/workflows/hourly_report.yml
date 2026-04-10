@@ -22,11 +22,11 @@ jobs:
       - name: Write Gmail credentials
         env:
           GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
-          GMAIL_TOKEN: ${{ secrets.GMAIL_TOKEN }}
+          GMAIL_TOKEN_B64: ${{ secrets.GMAIL_TOKEN }}
         run: |
           mkdir -p ~/.config/gws
           printf '%s' "$GMAIL_CLIENT_SECRET" > ~/.config/gws/client_secret.json
-          echo "$GMAIL_TOKEN" | base64 --decode > ~/.config/gws/gmail_token.json
+          python3 -c "import base64,os; open(os.path.expanduser('~/.config/gws/gmail_token.json'),'wb').write(base64.b64decode(os.environ['GMAIL_TOKEN_B64'].strip()))"
 
       - name: Run report
         env:
