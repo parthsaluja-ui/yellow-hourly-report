@@ -79,13 +79,15 @@ def get_latest_csv(service):
 def generate_report(df):
     IST = timezone(timedelta(hours=5, minutes=30))
     now_ist       = datetime.now(IST)
-    one_hour_ago  = (now_ist - timedelta(hours=1)).replace(tzinfo=None)
+    # Filter for the previous complete hour (e.g. at 4:35 PM → filter 3:00-4:00 PM)
+    hour_end      = now_ist.replace(minute=0, second=0, microsecond=0, tzinfo=None)
+    one_hour_ago  = (hour_end - timedelta(hours=1))
     today_start   = now_ist.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
 
     # CSV times are in IST (no timezone info) — parse as naive
     df["TICKET_CREATION_TIME"] = pd.to_datetime(df["TICKET_CREATION_TIME"], errors="coerce")
 
-    last_hour_df = df[df["TICKET_CREATION_TIME"] >= one_hour_ago]
+    last_hour_df = df[(df["TICKET_CREATION_TIME"] >= one_hour_ago) & (df["TICKET_CREATION_TIME"] < hour_end)]
     today_df     = df[df["TICKET_CREATION_TIME"] >= today_start]
 
     # 1. Snapshot — count unique sessions (chats), not tickets
@@ -111,7 +113,7 @@ def generate_report(df):
         "unassigned":      unassigned,
         "avg_wait":        avg_wait_str,
         "source_breakdown": source_breakdown,
-        "timestamp":       now_ist.strftime("%d %b %Y, %I:%M %p IST"),
+        "timestamp":       f"{one_hour_ago.strftime('%I:%M %p')} – {hour_end.strftime('%I:%M %p IST, %d %b %Y')}",
     }
 
 
