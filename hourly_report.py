@@ -79,9 +79,10 @@ def get_latest_csv(service):
 def generate_report(df):
     IST = timezone(timedelta(hours=5, minutes=30))
     now_ist       = datetime.now(IST)
-    # Filter for the previous complete hour (e.g. at 4:35 PM → filter 3:00-4:00 PM)
-    hour_end      = now_ist.replace(minute=0, second=0, microsecond=0, tzinfo=None)
-    one_hour_ago  = (hour_end - timedelta(hours=1))
+    # Filter for 2 hours ago → 1 hour ago (complete hour with full data in CSV)
+    # e.g. at 7:05 PM → filter 5:00-6:00 PM
+    hour_end      = now_ist.replace(minute=0, second=0, microsecond=0, tzinfo=None) - timedelta(hours=1)
+    one_hour_ago  = hour_end - timedelta(hours=1)
     today_start   = now_ist.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
 
     # CSV times are in IST (no timezone info) — parse as naive
