@@ -26,7 +26,7 @@ jobs:
         run: |
           mkdir -p ~/.config/gws
           printf '%s' "$GMAIL_CLIENT_SECRET" > ~/.config/gws/client_secret.json
-          printf '%s' "$GMAIL_TOKEN" > ~/.config/gws/gmail_token.json
+          echo "$GMAIL_TOKEN" | base64 -d > ~/.config/gws/gmail_token.json
 
       - name: Run report
         env:
