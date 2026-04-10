@@ -20,10 +20,13 @@ jobs:
         run: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client pandas requests
 
       - name: Write Gmail credentials
+        env:
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_TOKEN: ${{ secrets.GMAIL_TOKEN }}
         run: |
           mkdir -p ~/.config/gws
-          echo '${{ secrets.GMAIL_CLIENT_SECRET }}' > ~/.config/gws/client_secret.json
-          echo '${{ secrets.GMAIL_TOKEN }}' > ~/.config/gws/gmail_token.json
+          printf '%s' "$GMAIL_CLIENT_SECRET" > ~/.config/gws/client_secret.json
+          printf '%s' "$GMAIL_TOKEN" > ~/.config/gws/gmail_token.json
 
       - name: Run report
         env:
