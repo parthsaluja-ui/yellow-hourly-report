@@ -4,6 +4,8 @@ on:
   schedule:
     - cron: "5 * * * *"  # runs every hour at X:05
   workflow_dispatch:       # allows manual trigger from GitHub
+  repository_dispatch:
+    types: [run-report]   # allows external trigger via API
 
 jobs:
   run-report:
