@@ -111,7 +111,11 @@ def generate_report(df, merged_df):
         merged_df["TICKET_STATUS"].astype(str).str.upper() == "QUEUED"
     ]["SESSION_ID"].nunique()
 
-    avg_wait_secs = last_hour_df["QUEUE_WAIT_DURATION_IN_SECONDS"].mean()
+    # Avg wait time only for tickets that were actually assigned/resolved
+    assigned_df = last_hour_df[
+        last_hour_df["TICKET_STATUS"].astype(str).str.upper().isin(["ASSIGNED", "RESOLVED"])
+    ]
+    avg_wait_secs = assigned_df["QUEUE_WAIT_DURATION_IN_SECONDS"].replace(0, pd.NA).mean()
     if pd.isna(avg_wait_secs):
         avg_wait_str = "N/A"
     else:
@@ -126,7 +130,7 @@ def generate_report(df, merged_df):
         "unassigned":      unassigned,
         "avg_wait":        avg_wait_str,
         "source_breakdown": source_breakdown,
-        "timestamp":       f"{one_hour_ago.strftime('%I:%M %p')} – {hour_end.strftime('%I:%M %p IST, %d %b %Y')}",
+        "timestamp":       one_hour_ago.strftime('%-I %p, %d %b %Y'),
     }
 
 
