@@ -1,0 +1,32 @@
+name: Yellow Hourly Report
+
+on:
+  schedule:
+    - cron: "5 * * * *"  # runs every hour at X:05
+  workflow_dispatch:       # allows manual trigger from GitHub
+
+jobs:
+  run-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client pandas requests
+
+      - name: Write Gmail credentials
+        run: |
+          mkdir -p ~/.config/gws
+          echo '${{ secrets.GMAIL_CLIENT_SECRET }}' > ~/.config/gws/client_secret.json
+          echo '${{ secrets.GMAIL_TOKEN }}' > ~/.config/gws/gmail_token.json
+
+      - name: Run report
+        env:
+          SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
+        run: python hourly_report.py
