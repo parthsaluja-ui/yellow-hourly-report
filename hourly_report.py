@@ -67,9 +67,13 @@ def get_latest_csv(service):
             continue
         csv_url = html.unescape(match.group(1))
         print(f"Downloading CSV from: {csv_url[:80]}...")
-        resp = requests.get(csv_url)
-        resp.raise_for_status()
-        dfs.append(pd.read_csv(io.StringIO(resp.text)))
+        for attempt in range(3):
+            resp = requests.get(csv_url, timeout=30)
+            if resp.status_code == 200:
+                dfs.append(pd.read_csv(io.StringIO(resp.text)))
+                break
+            print(f"Attempt {attempt+1} failed ({resp.status_code}), retrying...")
+            import time; time.sleep(5)
 
     if not dfs:
         raise Exception("No CSV download link found in emails")
