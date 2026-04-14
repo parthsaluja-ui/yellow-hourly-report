@@ -17,12 +17,14 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
 # ── Config ──────────────────────────────────────────────────────────────────
-SLACK_TOKEN   = os.environ.get("SLACK_TOKEN", "")
-SLACK_CHANNEL = os.environ.get("SLACK_CHANNEL", "C0AR8NQTUJJ")
-EMAIL_SUBJECT = "Ashad Daily Report || SUCCESS"
-CLIENT_SECRET = os.path.expanduser("~/.config/gws/client_secret.json")
-TOKEN_PATH    = os.path.expanduser("~/.config/gws/gmail_token.json")
-SCOPES        = ["https://www.googleapis.com/auth/gmail.readonly"]
+SLACK_TOKEN        = os.environ.get("SLACK_TOKEN", "")
+SLACK_CHANNEL      = os.environ.get("SLACK_CHANNEL", "C0AR8NQTUJJ")
+EMAIL_SUBJECT      = "Ashad Daily Report || SUCCESS"
+CLIENT_SECRET      = os.path.expanduser("~/.config/gws/client_secret.json")
+TOKEN_PATH         = os.path.expanduser("~/.config/gws/gmail_token.json")
+SCOPES             = ["https://www.googleapis.com/auth/gmail.readonly",
+                      "https://www.googleapis.com/auth/drive.file"]
+DRIVE_FOLDER_ID    = "1_gpSTsdb2r4BpFPgrbYWP6wiMGH2L0Oy"  # Yellow CSV's folder
 
 
 # ── Gmail auth ───────────────────────────────────────────────────────────────
@@ -55,6 +57,7 @@ def get_latest_csv(service):
 
     import re, html
     dfs = []
+    csv_texts = []
     for msg_meta in messages:
         msg = service.users().messages().get(
             userId="me", id=msg_meta["id"], format="full"
@@ -71,6 +74,7 @@ def get_latest_csv(service):
             resp = requests.get(csv_url, timeout=30)
             if resp.status_code == 200:
                 dfs.append(pd.read_csv(io.StringIO(resp.text)))
+                csv_texts.append(resp.text)
                 break
             print(f"Attempt {attempt+1} failed ({resp.status_code}), retrying...")
             import time; time.sleep(5)
@@ -81,7 +85,13 @@ def get_latest_csv(service):
     # Return latest CSV + merged (for queue count)
     latest_df = dfs[0]
     merged_df = pd.concat(dfs).drop_duplicates(subset="SESSION_ID", keep="first")  # keep newest
-    return latest_df, merged_df
+
+    # Generate filename with IST timestamp
+    IST = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(IST)
+    csv_filename = f"yellow_{now_ist.strftime('%Y-%m-%d_%H%M')}_IST.csv"
+
+    return latest_df, merged_df, csv_texts[0], csv_filename
 
 
 # ── Generate report data ─────────────────────────────────────────────────────
@@ -138,6 +148,35 @@ def generate_report(df, merged_df):
     }
 
 
+# ── Upload CSV to Google Drive ───────────────────────────────────────────────
+def upload_to_drive(csv_content, filename):
+    from googleapiclient.http import MediaInMemoryUpload
+    creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
+    if creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+    drive = build("drive", "v3", credentials=creds)
+
+    # Check if file already exists in folder
+    existing = drive.files().list(
+        q=f"name='{filename}' and '{DRIVE_FOLDER_ID}' in parents and trashed=false",
+        fields="files(id)"
+    ).execute().get("files", [])
+
+    media = MediaInMemoryUpload(csv_content.encode("utf-8"), mimetype="text/csv")
+
+    if existing:
+        # Update existing file
+        drive.files().update(fileId=existing[0]["id"], media_body=media).execute()
+        print(f"Updated {filename} in Drive")
+    else:
+        # Create new file
+        drive.files().create(
+            body={"name": filename, "parents": [DRIVE_FOLDER_ID]},
+            media_body=media
+        ).execute()
+        print(f"Uploaded {filename} to Drive")
+
+
 # ── Send to Slack ─────────────────────────────────────────────────────────────
 def send_slack_report(report):
     def fmt(d):
@@ -169,7 +208,8 @@ def send_slack_report(report):
 if __name__ == "__main__":
     print(f"[{datetime.now()}] Running Yellow hourly report...")
     service            = get_gmail_service()
-    df, merged_df      = get_latest_csv(service)
+    df, merged_df, csv_content, csv_filename = get_latest_csv(service)
+    upload_to_drive(csv_content, csv_filename)
     report             = generate_report(df, merged_df)
     send_slack_report(report)
     print("Done!")
