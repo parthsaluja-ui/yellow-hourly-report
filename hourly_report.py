@@ -213,7 +213,7 @@ def send_slack_report(report):
 • Total chats today (New + Reopen): *{report['total_today']}*
 • In queue / unassigned: *{report['unassigned']}*
 • Avg wait time: *{report['avg_wait']}*
-• Assigned (L1 + L2): *{report['assigned_l1_l2']}*
+• Assigned chats: *{report['assigned_l1_l2']}*
 • Resolved last hour: *{report['resolved_last_hour']}*
 • Spillover (prev hour, unresolved): *{report['spillover']}*
 
