@@ -147,13 +147,9 @@ def generate_report(df, merged_df):
         (df["RESOLUTION_TIME"] >= one_hour_ago) & (df["RESOLUTION_TIME"] < hour_end)
     ]["SESSION_ID"].nunique()
 
-    # 4. Spillover — created in the hour before last, NOT yet resolved
-    two_hours_ago = one_hour_ago - timedelta(hours=1)
-    prev_hour_df = df[
-        (df["TICKET_CREATION_TIME"] >= two_hours_ago) & (df["TICKET_CREATION_TIME"] < one_hour_ago)
-    ]
-    spillover = prev_hour_df[
-        prev_hour_df["TICKET_STATUS"].astype(str).str.upper() != "RESOLVED"
+    # 4. Spillover — created in last hour, NOT yet resolved (carried into current hour)
+    spillover = last_hour_df[
+        last_hour_df["TICKET_STATUS"].astype(str).str.upper() != "RESOLVED"
     ]["SESSION_ID"].nunique()
 
     # 5. Source breakdown
