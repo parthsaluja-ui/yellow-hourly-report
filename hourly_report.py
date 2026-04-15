@@ -147,12 +147,7 @@ def generate_report(df, merged_df):
         (df["RESOLUTION_TIME"] >= one_hour_ago) & (df["RESOLUTION_TIME"] < hour_end)
     ]["SESSION_ID"].nunique()
 
-    # 4. Spillover — created in last hour, NOT yet resolved (carried into current hour)
-    spillover = last_hour_df[
-        last_hour_df["TICKET_STATUS"].astype(str).str.upper() != "RESOLVED"
-    ]["SESSION_ID"].nunique()
-
-    # 5. Flagged chats in last hour
+    # 4. Flagged chats in last hour
     flagged_last_hour = last_hour_df[
         last_hour_df["GROUP_CODE"].astype(str).str.upper() == "FLG-SUP"
     ]["SESSION_ID"].nunique()
@@ -167,7 +162,6 @@ def generate_report(df, merged_df):
         "avg_wait":          avg_wait_str,
         "assigned_l1_l2":    assigned_l1_l2,
         "resolved_last_hour": resolved_last_hour,
-        "spillover":         spillover,
         "flagged_last_hour": flagged_last_hour,
         "source_breakdown":  source_breakdown,
         "timestamp":         one_hour_ago.strftime('%d %b %Y'),
@@ -217,7 +211,6 @@ def send_slack_report(report):
 • Avg wait time: *{report['avg_wait']}*
 • Assigned chats: *{report['assigned_l1_l2']}*
 • Resolved last hour: *{report['resolved_last_hour']}*
-• Spillover (prev hour, unresolved): *{report['spillover']}*
 • Flagged chats: *{report['flagged_last_hour']}*
 
 *2️⃣ Source Breakdown*
