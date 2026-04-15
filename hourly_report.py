@@ -135,10 +135,10 @@ def generate_report(df, merged_df):
     else:
         avg_wait_str = f"{int(avg_wait_secs / 60)} mins"
 
-    # 2. Assigned L1 + L2 in last hour
-    assigned_l1_l2 = last_hour_df[
-        (last_hour_df["TICKET_STATUS"].astype(str).str.upper() == "ASSIGNED") &
-        (last_hour_df["GROUP_CODE"].astype(str).str.upper().isin(["L1", "L2"]))
+    # 2. Total currently assigned to L1 + L2 (across all time, not just last hour)
+    assigned_l1_l2 = merged_df[
+        (merged_df["TICKET_STATUS"].astype(str).str.upper() == "ASSIGNED") &
+        (merged_df["GROUP_CODE"].astype(str).str.upper().isin(["L1", "L2"]))
     ]["SESSION_ID"].nunique()
 
     # 3. Resolved in last hour (by RESOLUTION_TIME, not creation time)
