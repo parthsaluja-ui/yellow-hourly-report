@@ -135,16 +135,40 @@ def generate_report(df, merged_df):
     else:
         avg_wait_str = f"{int(avg_wait_secs / 60)} mins"
 
-    # 2. Source breakdown
+    # 2. Assigned L1 + L2 in last hour
+    assigned_l1_l2 = last_hour_df[
+        (last_hour_df["TICKET_STATUS"].astype(str).str.upper() == "ASSIGNED") &
+        (last_hour_df["GROUP_CODE"].astype(str).str.upper().isin(["L1", "L2"]))
+    ]["SESSION_ID"].nunique()
+
+    # 3. Resolved in last hour (by RESOLUTION_TIME, not creation time)
+    df["RESOLUTION_TIME"] = pd.to_datetime(df["RESOLUTION_TIME"], errors="coerce")
+    resolved_last_hour = df[
+        (df["RESOLUTION_TIME"] >= one_hour_ago) & (df["RESOLUTION_TIME"] < hour_end)
+    ]["SESSION_ID"].nunique()
+
+    # 4. Spillover — created in the hour before last, NOT yet resolved
+    two_hours_ago = one_hour_ago - timedelta(hours=1)
+    prev_hour_df = df[
+        (df["TICKET_CREATION_TIME"] >= two_hours_ago) & (df["TICKET_CREATION_TIME"] < one_hour_ago)
+    ]
+    spillover = prev_hour_df[
+        prev_hour_df["TICKET_STATUS"].astype(str).str.upper() != "RESOLVED"
+    ]["SESSION_ID"].nunique()
+
+    # 5. Source breakdown
     source_breakdown = last_hour_df.drop_duplicates("SESSION_ID")["SOURCE_CHANNEL"].value_counts().to_dict()
 
     return {
-        "total_last_hour": total_last_hour,
-        "total_today":     total_today,
-        "unassigned":      unassigned,
-        "avg_wait":        avg_wait_str,
-        "source_breakdown": source_breakdown,
-        "timestamp":       one_hour_ago.strftime('%d %b %Y'),
+        "total_last_hour":   total_last_hour,
+        "total_today":       total_today,
+        "unassigned":        unassigned,
+        "avg_wait":          avg_wait_str,
+        "assigned_l1_l2":    assigned_l1_l2,
+        "resolved_last_hour": resolved_last_hour,
+        "spillover":         spillover,
+        "source_breakdown":  source_breakdown,
+        "timestamp":         one_hour_ago.strftime('%d %b %Y'),
     }
 
 
@@ -189,6 +213,9 @@ def send_slack_report(report):
 • Total chats today (New + Reopen): *{report['total_today']}*
 • In queue / unassigned: *{report['unassigned']}*
 • Avg wait time: *{report['avg_wait']}*
+• Assigned (L1 + L2): *{report['assigned_l1_l2']}*
+• Resolved last hour: *{report['resolved_last_hour']}*
+• Spillover (prev hour, unresolved): *{report['spillover']}*
 
 *2️⃣ Source Breakdown*
 {fmt(report['source_breakdown'])}"""
