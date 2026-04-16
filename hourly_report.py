@@ -211,7 +211,7 @@ def send_slack_report(report):
 • Avg wait time: *{report['avg_wait']}*
 • Assigned chats: *{report['assigned_l1_l2']}*
 • Resolved last hour: *{report['resolved_last_hour']}*
-• Flagged chats (today): *{report['flagged_last_hour']}*
+• Flagged chats (total today): *{report['flagged_last_hour']}*
 
 *2️⃣ Source Breakdown*
 {fmt(report['source_breakdown'])}"""
