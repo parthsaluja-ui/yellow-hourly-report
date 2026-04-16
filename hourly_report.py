@@ -147,9 +147,9 @@ def generate_report(df, merged_df):
         (df["RESOLUTION_TIME"] >= one_hour_ago) & (df["RESOLUTION_TIME"] < hour_end)
     ]["SESSION_ID"].nunique()
 
-    # 4. Flagged chats in last hour
-    flagged_last_hour = last_hour_df[
-        last_hour_df["GROUP_CODE"].astype(str).str.upper() == "FLG-SUP"
+    # 4. Flagged chats today (GROUP_CODE = FLG-SUP, regardless of creation time)
+    flagged_last_hour = merged_df[
+        merged_df["GROUP_CODE"].astype(str).str.upper() == "FLG-SUP"
     ]["SESSION_ID"].nunique()
 
     # 6. Source breakdown
@@ -211,7 +211,7 @@ def send_slack_report(report):
 • Avg wait time: *{report['avg_wait']}*
 • Assigned chats: *{report['assigned_l1_l2']}*
 • Resolved last hour: *{report['resolved_last_hour']}*
-• Flagged chats: *{report['flagged_last_hour']}*
+• Flagged chats (today): *{report['flagged_last_hour']}*
 
 *2️⃣ Source Breakdown*
 {fmt(report['source_breakdown'])}"""
