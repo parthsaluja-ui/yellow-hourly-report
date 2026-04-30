@@ -197,6 +197,26 @@ def upload_to_drive(csv_content, filename):
         print(f"Uploaded {filename} to Drive")
 
 
+# ── Dedup: check if report already sent this hour ────────────────────────────
+def already_sent_this_hour():
+    IST = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(IST)
+    hour_start = now_ist.replace(minute=0, second=0, microsecond=0)
+    oldest_ts = str(hour_start.timestamp())
+
+    resp = requests.get(
+        "https://slack.com/api/conversations.history",
+        headers={"Authorization": f"Bearer {SLACK_TOKEN}"},
+        params={"channel": SLACK_CHANNEL, "oldest": oldest_ts, "limit": 10},
+    )
+    messages = resp.json().get("messages", [])
+    for msg in messages:
+        if "Yellow Hourly Report" in msg.get("text", ""):
+            print(f"Report already sent this hour, skipping.")
+            return True
+    return False
+
+
 # ── Send to Slack ─────────────────────────────────────────────────────────────
 def send_slack_report(report):
     def fmt(d):
@@ -234,5 +254,8 @@ if __name__ == "__main__":
     df, merged_df, csv_content, csv_filename = get_latest_csv(service)
     upload_to_drive(csv_content, csv_filename)
     report             = generate_report(df, merged_df)
-    send_slack_report(report)
-    print("Done!")
+    if already_sent_this_hour():
+        print("Done (skipped duplicate)!")
+    else:
+        send_slack_report(report)
+        print("Done!")
