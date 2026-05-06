@@ -128,8 +128,8 @@ def generate_report(df, merged_df):
     merged_df["TICKET_CREATION_TIME"] = pd.to_datetime(merged_df["TICKET_CREATION_TIME"], errors="coerce")
     merged_today_df = merged_df[merged_df["TICKET_CREATION_TIME"] >= today_start]
 
-    # 1. Snapshot — count unique sessions (chats), not tickets
-    total_last_hour = last_hour_df["SESSION_ID"].nunique()
+    # 1. Snapshot — count rows (new + reopen), same unit as total_today so numbers add up
+    total_last_hour = len(last_hour_df)
     # Cumulative = total rows from latest CSV for today
     latest_today_df = df[df["TICKET_CREATION_TIME"] >= today_start]
     total_today     = len(latest_today_df)
