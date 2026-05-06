@@ -55,13 +55,25 @@ def get_latest_csv(service):
     if not messages:
         raise Exception(f"No emails found with subject: {EMAIL_SUBJECT}")
 
-    import re, html
+    import re, html, time as _time
+    IST = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(IST)
+
     dfs = []
     csv_texts = []
+    email_ages = []
     for msg_meta in messages:
         msg = service.users().messages().get(
             userId="me", id=msg_meta["id"], format="full"
         ).execute()
+
+        # Log when this email was received
+        received_ts = int(msg.get("internalDate", 0)) / 1000
+        received_dt = datetime.fromtimestamp(received_ts, tz=IST)
+        age_mins = int((now_ist - received_dt).total_seconds() / 60)
+        print(f"Email received: {received_dt.strftime('%Y-%m-%d %H:%M IST')} ({age_mins} mins ago)")
+        email_ages.append(age_mins)
+
         body = base64.urlsafe_b64decode(msg["payload"]["body"]["data"]).decode("utf-8", errors="ignore")
         match = re.search(r"href='(https://app\.yellow\.ai/minio/exports/[^']+)'", body)
         if not match:
@@ -77,21 +89,23 @@ def get_latest_csv(service):
                 csv_texts.append(resp.text)
                 break
             print(f"Attempt {attempt+1} failed ({resp.status_code}), retrying...")
-            import time; time.sleep(5)
+            _time.sleep(5)
 
     if not dfs:
         raise Exception("No CSV download link found in emails")
+
+    # Warn if latest email is stale (older than 90 mins)
+    stale = email_ages[0] > 90 if email_ages else False
+    if stale:
+        print(f"WARNING: Latest email is {email_ages[0]} mins old — data may be stale!")
 
     # Return latest CSV + merged (for queue count)
     latest_df = dfs[0]
     merged_df = pd.concat(dfs).drop_duplicates(subset="SESSION_ID", keep="first")  # keep newest
 
-    # Generate filename with IST timestamp
-    IST = timezone(timedelta(hours=5, minutes=30))
-    now_ist = datetime.now(IST)
     csv_filename = f"yellow_{now_ist.strftime('%Y-%m-%d_%H%M')}_IST.csv"
 
-    return latest_df, merged_df, csv_texts[0], csv_filename
+    return latest_df, merged_df, csv_texts[0], csv_filename, stale
 
 
 # ── Generate report data ─────────────────────────────────────────────────────
@@ -218,11 +232,12 @@ def already_sent_this_hour():
 
 
 # ── Send to Slack ─────────────────────────────────────────────────────────────
-def send_slack_report(report):
+def send_slack_report(report, stale=False):
     def fmt(d):
         return "\n".join(f"  • {k}: *{v}*" for k, v in d.items()) if d else "  • No data"
 
-    message = f"""*Yellow Hourly Report — {report['timestamp']}*
+    stale_note = "\n⚠️ _Data may be stale — Yellow email older than 90 mins_" if stale else ""
+    message = f"""*Yellow Hourly Report — {report['timestamp']}*{stale_note}
 
 *1️⃣ Last Hour Snapshot*
 • Chats (last 1hr): *{report['total_last_hour']}*
@@ -251,11 +266,11 @@ def send_slack_report(report):
 if __name__ == "__main__":
     print(f"[{datetime.now()}] Running Yellow hourly report...")
     service            = get_gmail_service()
-    df, merged_df, csv_content, csv_filename = get_latest_csv(service)
+    df, merged_df, csv_content, csv_filename, stale = get_latest_csv(service)
     upload_to_drive(csv_content, csv_filename)
     report             = generate_report(df, merged_df)
     if already_sent_this_hour():
         print("Done (skipped duplicate)!")
     else:
-        send_slack_report(report)
+        send_slack_report(report, stale=stale)
         print("Done!")
