@@ -139,15 +139,16 @@ def generate_report(df, merged_df):
         merged_df["TICKET_STATUS"].astype(str).str.upper() == "QUEUED"
     ]["SESSION_ID"].nunique()
 
-    # Avg wait time only for tickets that were actually assigned/resolved
-    assigned_df = last_hour_df[
-        last_hour_df["TICKET_STATUS"].astype(str).str.upper().isin(["ASSIGNED", "RESOLVED"])
-    ]
-    avg_wait_secs = assigned_df["QUEUE_WAIT_DURATION_IN_SECONDS"].replace(0, pd.NA).mean()
-    if pd.isna(avg_wait_secs):
+    # Avg wait time = how long currently-queued tickets have been waiting
+    now_naive = now_ist.replace(tzinfo=None)
+    queued_df = merged_df[merged_df["TICKET_STATUS"].astype(str).str.upper() == "QUEUED"].copy()
+    queued_df["TICKET_CREATION_TIME"] = pd.to_datetime(queued_df["TICKET_CREATION_TIME"], errors="coerce")
+    queued_waits = (now_naive - queued_df["TICKET_CREATION_TIME"]).dt.total_seconds() / 60
+    queued_waits = queued_waits.dropna()
+    if queued_waits.empty:
         avg_wait_str = "N/A"
     else:
-        avg_wait_str = f"{int(avg_wait_secs / 60)} mins"
+        avg_wait_str = f"{int(queued_waits.median())} mins"
 
     # 2. Total currently assigned to L1 + L2 (across all time, not just last hour)
     assigned_l1_l2 = merged_df[
@@ -243,7 +244,7 @@ def send_slack_report(report, stale=False):
 • Chats (last 1hr): *{report['total_last_hour']}*
 • Total chats today (New + Reopen): *{report['total_today']}*
 • In queue / unassigned: *{report['unassigned']}*
-• Avg wait time: *{report['avg_wait']}*
+• Avg queue wait (currently): *{report['avg_wait']}*
 • Assigned chats: *{report['assigned_l1_l2']}*
 • Resolved last hour: *{report['resolved_last_hour']}*
 • Flagged chats (total today): *{report['flagged_last_hour']}*
